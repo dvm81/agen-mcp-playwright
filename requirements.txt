@@ -1,0 +1,11 @@
+# OpenAI API for LLM agent
+openai>=1.0.0
+
+# MCP Python SDK for connecting to MCP servers
+mcp>=0.1.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# HTTP requests for file downloads
+requests>=2.31.0
