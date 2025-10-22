@@ -9,3 +9,10 @@ python-dotenv>=1.0.0
 
 # HTTP requests for file downloads
 requests>=2.31.0
+
+# LangGraph for state machine workflows
+langgraph>=1.0.0
+
+# LangChain core for agent utilities
+langchain-core>=1.0.0
+langchain-openai>=1.0.0
