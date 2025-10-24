@@ -1,96 +1,33 @@
-#!/usr/bin/env python3
-"""
-Self-contained Playwright PDF downloader for corporate intranet
-Requires: pip install playwright
-Then run: playwright install chromium
-"""
-
-import asyncio
-import os
-from pathlib import Path
-from playwright.async_api import async_playwright
-
-# ============ CONFIGURATION ============
-DOWNLOAD_DIR = "./downloads"  # Change to your desired directory
-INTRANET_URL = "https://intranet.company.com/document.pdf"  # Your hardcoded URL
-
-# Certificate authentication (adjust paths)
-CERT_PATH = "/path/to/client-cert.pem"  # Or .crt
-KEY_PATH = "/path/to/client-key.pem"   # Or .key
-# Or for .pfx format:
-# PFX_PATH = "/path/to/cert.pfx"
-# PFX_PASSWORD = "your-password"
-
-# =======================================
-
-async def download_pdf():
-    """Download PDF from intranet site with certificate auth"""
-    
-    # Create download directory
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-    print(f"📁 Download directory: {os.path.abspath(DOWNLOAD_DIR)}")
-    
-    async with async_playwright() as p:
-        # Launch Chromium
-        browser = await p.chromium.launch(
-            headless=False  # Set True for headless mode
-        )
+async def setup_browser(self):
+    """Set up browser with download permissions and enhanced settings"""
+    try:
+        print("🌐 Setting up browser with enhanced download permissions...")
         
-        # Create context with certificate authentication
-        context = await browser.new_context(
-            client_certificates=[{
-                "origin": INTRANET_URL.split('/')[0] + '//' + INTRANET_URL.split('/')[2],
-                "certPath": CERT_PATH,
-                "keyPath": KEY_PATH,
-                # For .pfx format, use instead:
-                # "pfxPath": PFX_PATH,
-                # "passphrase": PFX_PASSWORD
-            }],
-            accept_downloads=True,
-            downloads_path=DOWNLOAD_DIR,
-            ignore_https_errors=True  # If using internal CA
-        )
+        # Create custom profile directory for our session
+        custom_profile = self.downloads_dir / "browser_profile"
+        custom_profile.mkdir(exist_ok=True)
         
-        page = await context.new_page()
+        # Set Chrome preferences for downloads
+        prefs = {
+            "download.default_directory": str(self.downloads_dir.absolute()),
+            "download.prompt_for_download": False,
+            "download.directory_upgrade": True,
+            "safebrowsing.enabled": False,
+            "profile.default_content_settings.popups": 0,
+        }
         
-        print(f"🌐 Navigating to: {INTRANET_URL}")
+        # Write preferences to the profile
+        prefs_file = custom_profile / "Default"
+        prefs_file.mkdir(exist_ok=True)
         
-        # Option A: Direct PDF download
-        try:
-            async with page.expect_download() as download_info:
-                await page.goto(INTRANET_URL, wait_until="networkidle")
-            
-            download = await download_info.value
-            filename = download.suggested_filename
-            filepath = os.path.join(DOWNLOAD_DIR, filename)
-            
-            await download.save_as(filepath)
-            print(f"✅ Downloaded: {filename}")
-            print(f"📍 Location: {os.path.abspath(filepath)}")
-            
-        except Exception as e:
-            print(f"❌ Error: {e}")
-            
-            # Option B: If it's a link to click instead
-            print("Trying alternative method (looking for download link)...")
-            try:
-                async with page.expect_download() as download_info:
-                    # Adjust selector to your specific download button/link
-                    await page.click('a:has-text("Download")')  # Or use specific selector
-                
-                download = await download_info.value
-                filename = download.suggested_filename
-                filepath = os.path.join(DOWNLOAD_DIR, filename)
-                await download.save_as(filepath)
-                print(f"✅ Downloaded: {filename}")
-                print(f"📍 Location: {os.path.abspath(filepath)}")
-            except Exception as e2:
-                print(f"❌ Also failed: {e2}")
-                # Take screenshot for debugging
-                await page.screenshot(path=os.path.join(DOWNLOAD_DIR, "debug.png"))
-                print(f"📸 Screenshot saved to: {DOWNLOAD_DIR}/debug.png")
+        import json
+        with open(prefs_file / "Preferences", "w") as f:
+            json.dump({"download": prefs}, f)
         
-        await browser.close()
-
-if __name__ == "__main__":
-    asyncio.run(download_pdf())
+        browser_args = [
+            f"--user-data-dir={custom_profile}",
+            "--allow-running-insecure-content",
+            "--disable-web-security",
+            "--disable-blink-features=AutomationControlled",
+            "--exclude-switches=enable-automation",
+        ]
